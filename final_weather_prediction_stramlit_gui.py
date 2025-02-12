@@ -1,11 +1,28 @@
+import os
 import streamlit as st
 from PIL import Image
 import numpy as np
 import joblib
 from datetime import datetime
 
-model = joblib.load("random_forest_model.pkl")
+# Get the base directory of the script
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Load the trained model
+model_path = os.path.join(BASE_DIR, "random_forest_model.pkl")
+if os.path.exists(model_path):
+    model = joblib.load(model_path)
+else:
+    st.error("❌ Model file not found! Please make sure 'random_forest_model.pkl' is in the project folder.")
+
+# Load the background image
+image_path = os.path.join(BASE_DIR, "rain.jpg")
+if os.path.exists(image_path):
+    bg_image = Image.open(image_path)
+else:
+    st.error("❌ Background image file not found! Please make sure 'rain.jpg' is in the project folder.")
+
+# Wind direction encoding
 direction_mapping = {
     'N': 0, 'NNE': 22.5, 'NE': 45, 'ENE': 67.5, 'E': 90,
     'ESE': 112.5, 'SE': 135, 'SSE': 157.5, 'S': 180,
@@ -30,9 +47,11 @@ def predict_weather(inputs):
 
 st.set_page_config(page_title="Weather Prediction App", page_icon="🌦️", layout="wide")
 
-bg_image = Image.open(r"C:\Users\DELL\Desktop\machine learning\fcds ml\fcds ml final project\rain.jpg")
-st.image(bg_image, use_container_width=True)
+# Display background image
+if os.path.exists(image_path):
+    st.image(bg_image, use_container_width=True)
 
+# Custom CSS for UI styling
 st.markdown(
     """
     <style>
@@ -67,23 +86,23 @@ st.title("🌦️ Weather Prediction App")
 st.markdown("**Enter the weather details below to predict if it will rain tomorrow.**")
 
 with st.form("weather_form"):
-    with st.container():
-        st.subheader("Enter Weather Details")
-        col1, col2, col3 = st.columns(3)
+    st.subheader("Enter Weather Details")
+    col1, col2, col3 = st.columns(3)
 
-        with col1:
-            input_date = st.text_input("Date (YYYY-MM-DD)", "2024-12-31")
-            rain_today = st.selectbox("Rain Today (Yes/No):", ["Yes", "No"])
-        
-        with col2:
-            wind_gust_dir = st.selectbox("Wind Gust Direction:", unique_directions)
-            wind_dir9am = st.selectbox("Wind Direction 9AM:", unique_directions)
-        
-        with col3:
-            wind_dir3pm = st.selectbox("Wind Direction 3PM:", unique_directions)
+    with col1:
+        input_date = st.text_input("Date (YYYY-MM-DD)", "2024-12-31")
+        rain_today = st.selectbox("Rain Today (Yes/No):", ["Yes", "No"])
+    
+    with col2:
+        wind_gust_dir = st.selectbox("Wind Gust Direction:", unique_directions)
+        wind_dir9am = st.selectbox("Wind Direction 9AM:", unique_directions)
+    
+    with col3:
+        wind_dir3pm = st.selectbox("Wind Direction 3PM:", unique_directions)
 
     st.write("---")
     st.subheader("Weather Data")
+
     fields = [
         "MinTemp", "MaxTemp", "Rainfall", "Evaporation", "Sunshine", "WindGustSpeed",
         "WindSpeed9am", "WindSpeed3pm", "Humidity9am", "Humidity3pm", "Pressure9am",
@@ -92,6 +111,7 @@ with st.form("weather_form"):
     col1, col2 = st.columns(2)
     numerical_inputs = {}
 
+    # Temperature fields
     temp_fields = ["MinTemp", "MaxTemp", "Temp9am", "Temp3pm"]
     non_temp_fields = [field for field in fields if field not in temp_fields]
 
@@ -99,10 +119,10 @@ with st.form("weather_form"):
         with col1 if field in ["MinTemp", "Temp9am"] else col2:
             numerical_inputs[field] = st.slider(
                 field,
-                min_value=-10.0,  # Minimum temperature value
-                max_value=50.0,   # Maximum temperature value
-                value=20.0,       # Default value
-                step=0.5          # Step size
+                min_value=-10.0,
+                max_value=50.0,
+                value=20.0,
+                step=0.5
             )
 
     for i, field in enumerate(non_temp_fields):
@@ -113,16 +133,19 @@ with st.form("weather_form"):
 
     if submitted:
         try:
+            # Parse date and extract features
             date_obj = datetime.strptime(input_date, "%Y-%m-%d")
             year, month, day = date_obj.year, date_obj.month, date_obj.day
             weekday = date_obj.weekday()
             duration = (date_obj - datetime(2008, 12, 1)).days
 
+            # Encode categorical inputs
             rain_today_encoded = encode_rain_today(rain_today)
             wind_gust_sin, wind_gust_cos = encode_wind_direction(wind_gust_dir)
             wind_dir9am_sin, wind_dir9am_cos = encode_wind_direction(wind_dir9am)
             wind_dir3pm_sin, wind_dir3pm_cos = encode_wind_direction(wind_dir3pm)
 
+            # Construct feature list
             features = [
                 rain_today_encoded, year, month, day, weekday, duration,
                 wind_gust_sin, wind_gust_cos, wind_dir9am_sin, wind_dir9am_cos,
@@ -130,6 +153,7 @@ with st.form("weather_form"):
                 *numerical_inputs.values()
             ]
 
+            # Validate feature count
             if len(features) != 28:
                 st.error(f"Expected 28 features, but got {len(features)}.")
             else:
@@ -138,6 +162,7 @@ with st.form("weather_form"):
         except Exception as e:
             st.error(f"An error occurred: {e}")
 
+# GitHub link
 st.markdown(
     """
     <a href="https://github.com/seifkhalled/Weather-prediction-project" target="_blank" style="
